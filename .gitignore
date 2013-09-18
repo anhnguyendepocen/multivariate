@@ -1,5 +1,7 @@
 # History files
 .Rhistory
+*.pdf
+*.png
 
 # Example code in package build process
 *-Ex.R
