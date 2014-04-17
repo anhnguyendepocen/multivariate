@@ -1,3 +1,4 @@
+set.seed(100)
 source("../test.funcs.R")
 source("GLCfuncs.R")
 VYY = as.matrix(read.table("RSS0.txt",header=T,sep=","))
