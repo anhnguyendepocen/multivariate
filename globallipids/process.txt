@@ -1,0 +1,85 @@
+#this is an incomplete record of how the files RSS0.txt and dtlesssignif.annot.txt were produced
+# global lipids data
+
+tg=read.table("TG_ONE_Europeans.tbl",header=T)
+tc=read.table("TC_ONE_Europeans.tbl",header=T)
+ldl=read.table("LDL_ONE_Europeans.tbl",header=T)
+hdl=read.table("HDL_ONE_Europeans.tbl",header=T)
+
+library("data.table")
+
+#create a merged table of Z scores
+dt1 = data.table(rs=ldl$MarkerName,Z.ldl=ldl$GC.Zscore,key="rs")
+dt2 = data.table(rs=hdl$MarkerName,Z.hdl=hdl$GC.Zscore,key="rs")
+dt3 = merge(dt1,dt2)
+
+#clear some space 
+rm(ldl)
+rm(hdl)
+rm(dt2)
+rm(dt1)
+
+dt1 = data.table(rs=tc$MarkerName,Z.tc=tc$GC.Zscore,key="rs")
+dt2 =merge(dt1,dt3)
+
+rm(dt1)
+rm(tc)
+rm(dt3)
+
+dt1=  data.table(rs=tg$MarkerName,Z.tg=tg$GC.Zscore,key="rs")
+dt3 = merge(dt1,dt2)
+rm(tg)
+
+
+attach(dt3)
+nullset = (abs(dt3$Z.tc)<2) & (abs(dt3$Z.tg)<2) & (abs(dt3$Z.hdl)<2) & (abs(dt3$Z.ldl)<2) #extract null Z values
+Z = cbind(Z.tc,Z.tg,Z.hdl,Z.ldl)
+
+#compute correlation based only on "null" results
+Znull = Z[nullset,]
+RSS0 =cor(Znull)
+RSS0inv = chol2inv(chol(RSS0))
+
+mvstat =  rowSums(Z * (Z %*% RSS0inv)) # comptues Z RSS0^-1 Z'
+dt3$mvstat = mvstat
+statchi = -log10(exp(1))*pchisq(mvstat,df=4,log.p=TRUE,lower.tail=FALSE)
+dt3$mvp = statchi
+
+maxZ2 = apply(Z^2,1,max)
+max.unip = -log10(exp(1))*pchisq(maxZ2,df=1,log.p=TRUE, lower.tail=FALSE)
+dt3$unip = max.unip
+
+dtsignif = dt3[dt3$mvp>-log10(5e-8) | dt3$unip>-log10(5e-8),]
+dtlesssignif = dt3[dt3$mvp>-log10(1e-6) | dt3$unip>-log10(1e-6),]
+
+
+write.table(file="dtsignif.txt",dtsignif,sep=",",row.names=F,quote=F)
+write.table(file="dtsignif.rs.txt",dtsignif$rs,sep=",",row.names=F,quote=F)
+write.table(file="dtlesssignif.txt",dtlesssignif,sep=",",row.names=F,quote=F)
+write.table(file="dtlesssignif.rs.txt",dtlesssignif$rs,sep=",",row.names=F,quote=F)
+write.table(file="dtlesssignif.rs.txt",paste(dtlesssignif$rs,"[[:space:]]",sep=""),row.names=F,quote=F)
+
+rm(dt3)
+
+--------------------------------------------------------
+#these grep commands did not end up working.
+#note that the lipid.multipheno.annot.dat files I don't have permission to distribute
+ #heres the top few lines of lipid.multipheno.annot.dat to show the structure
+#        snp        chr            pos  maf       n_HDL     beta_HDL     se_HDL           n_LDL       beta_LDL    se_LDL         n_TC   
+# beta_TC       se_TC            n_TG       beta_TG      se_TG    annot   gene
+#     rs10003036   0              0  0.468      39307   -1.872e-03    6.879e-03        38680    7.122e-03    7.982e-03        39562    
+#1.108e-02    7.844e-03        39419    1.946e-03    7.451e-03     -1  n.a.
+#     rs10026044   0              0  0.411      39307   -1.336e-03    6.951e-03        38680   -1.325e-03    8.055e-03        39562    
+#2.667e-03    7.925e-03        39419    4.351e-03    7.528e-03     -1  n.a.
+#     rs10159285   0              0  0.049      24718   -2.002e-02    2.073e-02        24356   -3.877e-03    2.545e-02        24908   -
+#2.241e-02    2.530e-02        24909   -8.313e-03    2.347e-02     -1  n.a.
+#     rs10485444   0              0  0.029      32911   -3.394e-02    2.240e-02        32379   -3.030e-02    2.626e-02        33129   -
+#4.572e-02    2.597e-02        32990    5.472e-04    2.446e-02     -1  n.a.
+#
+
+
+ 
+#I think I ended up reading it in to R and subsettting to make these files
+grep -f dtsignif.rs.txt ../lipid.multipheno.annot.dat > dtsignif.annot.txt
+grep -f dtlesssignif.rs.txt ../lipid.multipheno.annot.dat > dtlesssignif.annot.txt
+
